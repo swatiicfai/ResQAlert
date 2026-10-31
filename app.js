@@ -1,139 +1,35 @@
 // ResQAlert Client-side Logic & Leaflet Map Controller
 
-const SEED_BACKUP_REQUESTS = [
-  {
-    id: "REQ-101",
-    type: "NEED",
-    category: "MEDICAL",
-    urgency: "CRITICAL",
-    title: "Elderly patient needs oxygen & insulin support",
-    description: "Power grid failed 3 hours ago. Battery backup on portable oxygen concentrator has 45 mins left. Need generator or fresh tank.",
-    location: {
-      type: "Point",
-      coordinates: [-73.9851, 40.7484],
-      address: "350 5th Ave (Near 34th St Entrance), New York, NY"
-    },
-    contact: "+1 (555) 234-8901",
-    channel: "SMS",
-    status: "OPEN",
-    createdAt: "2026-10-31T17:30:00Z",
-    claimedBy: null
-  },
-  {
-    id: "REQ-102",
-    type: "NEED",
-    category: "RESCUE",
-    urgency: "HIGH",
-    title: "Ground floor flooded, family of 4 stranded",
-    description: "Water rising above knee level. Need evacuation assistance or high-clearance vehicle/boat.",
-    location: {
-      type: "Point",
-      coordinates: [-73.9712, 40.7648],
-      address: "68th St & York Ave, New York, NY"
-    },
-    contact: "+1 (555) 891-2345",
-    channel: "WEB",
-    status: "CLAIMED",
-    createdAt: "2026-10-31T18:15:00Z",
-    claimedBy: "Water Rescue Squad 4 (ETA: 15 mins)"
-  },
-  {
-    id: "REQ-103",
-    type: "NEED",
-    category: "WATER_FOOD",
-    urgency: "MEDIUM",
-    title: "Clean drinking water & infant formula needed",
-    description: "Tap water contaminated due to water main break. Infant formula supplies exhausted for 12-month-old.",
-    location: {
-      type: "Point",
-      coordinates: [-73.9928, 40.7308],
-      address: "Washington Square East, New York, NY"
-    },
-    contact: "+1 (555) 432-6789",
-    channel: "SMS",
-    status: "OPEN",
-    createdAt: "2026-10-31T18:45:00Z",
-    claimedBy: null
-  },
-  {
-    id: "REQ-104",
-    type: "OFFER",
-    category: "SHELTER",
-    urgency: "LOW",
-    title: "Community Center Dry Shelter & Power Station",
-    description: "Backup diesel generator active. Clean water, hot meals, 45 dry cots, and phone charging stations available.",
-    location: {
-      type: "Point",
-      coordinates: [-73.9982, 40.7260],
-      address: "Houston St Community Annex, New York, NY"
-    },
-    contact: "+1 (555) 765-4321",
-    channel: "WEB",
-    status: "OPEN",
-    createdAt: "2026-10-31T16:00:00Z",
-    claimedBy: null
-  },
-  {
-    id: "REQ-105",
-    type: "OFFER",
-    category: "MEDICAL",
-    urgency: "LOW",
-    title: "Volunteer Paramedic Team with Mobile First-Aid",
-    description: "Equipped with automated external defibrillator (AED), sterile dressings, burns treatment, and basic triage supplies.",
-    location: {
-      type: "Point",
-      coordinates: [-73.9814, 40.7410],
-      address: "Madison Square Park North, New York, NY"
-    },
-    contact: "+1 (555) 902-3456",
-    channel: "WEB",
-    status: "OPEN",
-    createdAt: "2026-10-31T17:10:00Z",
-    claimedBy: null
-  }
-];
-
 let map;
 let markersLayer;
-let allRequests = [...SEED_BACKUP_REQUESTS];
+let allRequests = [];
 let currentFilter = 'ALL';
-let currentRole = 'CITIZEN';
-let mapCenter = [40.7484, -73.9851];
+let currentRole = 'CITIZEN'; // 'CITIZEN' or 'RESPONDER'
+let mapCenter = [40.7484, -73.9851]; // Default: NYC Core
 let currentRadiusKm = 25;
 
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
   bindEvents();
-  renderInitialData();
   fetchRequests();
   fetchStats();
 });
 
-function renderInitialData() {
-  updateMetricsDisplay({ openNeeds: 2, critical: 1, offers: 2, claimed: 1 });
-  renderMapPins();
-  renderFeed();
-}
-
-function updateMetricsDisplay(stats) {
-  document.getElementById('statActiveSos').innerText = stats.openNeeds ?? 2;
-  document.getElementById('statCritical').innerText = stats.critical ?? 1;
-  document.getElementById('statOffers').innerText = stats.offers ?? 2;
-  document.getElementById('statClaimed').innerText = stats.claimed ?? 1;
-}
-
+// Initialize Leaflet Map with Dark Tiles
 function initMap() {
   map = L.map('map', {
     zoomControl: true,
   }).setView(mapCenter, 13);
 
-  // OpenStreetMap with High-Contrast Dark Tactical Theme (No API Key Required)
+  // OpenStreetMap with High-Contrast Dark Tactical Theme (100% Free, No API Key Required)
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
+
+  // Add circle representing the geospatial search radius
   updateRadiusCircle();
 
   map.on('moveend', () => {
@@ -157,40 +53,41 @@ function updateRadiusCircle() {
   }).addTo(map);
 }
 
+// Fetch all requests from API
 async function fetchRequests() {
   try {
     const res = await fetch(`/api/requests?lat=${mapCenter[0]}&lng=${mapCenter[1]}&radius=${currentRadiusKm}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-        allRequests = data.data;
-        renderMapPins();
-        renderFeed();
-      }
+    const data = await res.json();
+    if (data.success) {
+      allRequests = data.data || [];
+      renderMapPins();
+      renderFeed();
     }
   } catch (err) {
-    console.warn('API requests fallback to embedded local data:', err);
+    console.error('Failed to load requests:', err);
   }
 }
 
+// Fetch Stats
 async function fetchStats() {
   try {
     const res = await fetch('/api/stats');
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      const data = await res.json();
-      if (data.success && data.stats) {
-        updateMetricsDisplay(data.stats);
-      }
+    const data = await res.json();
+    if (data.success && data.stats) {
+      document.getElementById('statActiveSos').innerText = data.stats.openNeeds ?? 0;
+      document.getElementById('statCritical').innerText = data.stats.critical ?? 0;
+      document.getElementById('statOffers').innerText = data.stats.offers ?? 0;
+      document.getElementById('statClaimed').innerText = data.stats.claimed ?? 0;
     }
   } catch (err) {
-    console.warn('API stats fallback to embedded local stats:', err);
+    console.error('Failed to load stats:', err);
   }
 }
 
+// Render Pins on Leaflet Map
 function renderMapPins() {
   markersLayer.clearLayers();
+
   const filtered = filterRequests(allRequests);
 
   filtered.forEach((req) => {
@@ -251,6 +148,7 @@ function renderMapPins() {
   });
 }
 
+// Render Right Stream Feed
 function renderFeed() {
   const container = document.getElementById('incidentList');
   const badge = document.getElementById('ticketCountBadge');
@@ -336,6 +234,7 @@ function renderFeed() {
     .join('');
 }
 
+// Filter logic helper
 function filterRequests(list) {
   if (currentFilter === 'ALL') return list;
   if (currentFilter === 'CRITICAL') return list.filter((r) => r.urgency === 'CRITICAL');
@@ -343,59 +242,55 @@ function filterRequests(list) {
   return list.filter((r) => r.category === currentFilter);
 }
 
+// Zoom map to specific pin
 window.focusOnMap = function (lat, lng) {
   map.flyTo([lat, lng], 16, { duration: 1.2 });
 };
 
+// Responder claims ticket
 window.claimTicket = async function (id) {
   const volunteerName = prompt('Enter Volunteer / Unit Name (e.g. Red Cross Mobile Unit 2):', 'Volunteer Dispatcher');
   if (!volunteerName) return;
 
-  const item = allRequests.find((r) => r.id === id);
-  if (item) {
-    item.status = 'CLAIMED';
-    item.claimedBy = volunteerName;
-    renderMapPins();
-    renderFeed();
-  }
-
   try {
-    await fetch('/api/resolve', {
+    const res = await fetch('/api/resolve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status: 'CLAIMED', claimedBy: volunteerName }),
     });
-    await fetchRequests();
-    await fetchStats();
+    const result = await res.json();
+    if (result.success) {
+      await fetchRequests();
+      await fetchStats();
+    }
   } catch (err) {
-    console.warn('API sync warning:', err);
+    alert('Error claiming ticket: ' + err.message);
   }
 };
 
+// Responder marks ticket resolved
 window.resolveTicket = async function (id) {
   if (!confirm(`Mark ticket ${id} as resolved and aid delivered?`)) return;
 
-  const item = allRequests.find((r) => r.id === id);
-  if (item) {
-    item.status = 'RESOLVED';
-    renderMapPins();
-    renderFeed();
-  }
-
   try {
-    await fetch('/api/resolve', {
+    const res = await fetch('/api/resolve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status: 'RESOLVED' }),
     });
-    await fetchRequests();
-    await fetchStats();
+    const result = await res.json();
+    if (result.success) {
+      await fetchRequests();
+      await fetchStats();
+    }
   } catch (err) {
-    console.warn('API sync warning:', err);
+    alert('Error updating ticket: ' + err.message);
   }
 };
 
+// Bind UI event listeners
 function bindEvents() {
+  // Role Switcher
   const btnCitizen = document.getElementById('roleCitizen');
   const btnResponder = document.getElementById('roleResponder');
 
@@ -415,16 +310,19 @@ function bindEvents() {
     renderFeed();
   });
 
+  // Radius Filter
   document.getElementById('radiusFilter').addEventListener('change', (e) => {
     currentRadiusKm = parseInt(e.target.value, 10);
     updateRadiusCircle();
     fetchRequests();
   });
 
+  // Reset View
   document.getElementById('resetViewBtn').addEventListener('click', () => {
     map.setView([40.7484, -73.9851], 13);
   });
 
+  // Filter Buttons
   document.querySelectorAll('.feed-filter-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.feed-filter-btn').forEach((b) => {
@@ -437,6 +335,7 @@ function bindEvents() {
     });
   });
 
+  // SOS Modal Controls
   const sosModal = document.getElementById('sosModal');
   document.getElementById('openSosModalBtn').addEventListener('click', () => {
     sosModal.classList.remove('hidden');
@@ -448,6 +347,7 @@ function bindEvents() {
     sosModal.classList.add('hidden');
   });
 
+  // SOS Form Submission
   document.getElementById('sosForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const type = document.querySelector('input[name="reportType"]:checked').value;
@@ -458,44 +358,40 @@ function bindEvents() {
     const address = document.getElementById('formAddress').value;
     const contact = document.getElementById('formContact').value;
 
+    // Estimate coordinates around map center
     const jitterLng = (Math.random() - 0.5) * 0.02;
     const jitterLat = (Math.random() - 0.5) * 0.02;
     const coordinates = [mapCenter[1] + jitterLng, mapCenter[0] + jitterLat];
 
-    const localItem = {
-      id: `REQ-${Date.now().toString().slice(-4)}`,
-      type,
-      category,
-      urgency,
-      title,
-      description,
-      location: { type: 'Point', coordinates, address },
-      contact,
-      channel: 'WEB',
-      status: 'OPEN',
-      createdAt: new Date().toISOString(),
-      claimedBy: null,
-    };
-
-    allRequests.unshift(localItem);
-    sosModal.classList.add('hidden');
-    document.getElementById('sosForm').reset();
-    renderMapPins();
-    renderFeed();
-    map.flyTo([coordinates[1], coordinates[0]], 15);
-
     try {
-      await fetch('/api/requests', {
+      const res = await fetch('/api/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(localItem),
+        body: JSON.stringify({
+          type,
+          category,
+          urgency,
+          title,
+          description,
+          location: { type: 'Point', coordinates, address },
+          contact,
+          channel: 'WEB',
+        }),
       });
-      await fetchStats();
+      const data = await res.json();
+      if (data.success) {
+        sosModal.classList.add('hidden');
+        document.getElementById('sosForm').reset();
+        await fetchRequests();
+        await fetchStats();
+        map.flyTo([coordinates[1], coordinates[0]], 15);
+      }
     } catch (err) {
-      console.warn('API sync warning:', err);
+      alert('Error broadcasting: ' + err.message);
     }
   });
 
+  // Simulator Drawer Controls
   const simDrawer = document.getElementById('smsSimulatorDrawer');
   document.getElementById('openSimulatorBtn').addEventListener('click', () => {
     simDrawer.classList.remove('translate-x-full');
@@ -504,6 +400,7 @@ function bindEvents() {
     simDrawer.classList.add('translate-x-full');
   });
 
+  // Preset Buttons in Simulator
   document.querySelectorAll('.preset-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.getElementById('smsInput').value = btn.dataset.msg;
@@ -511,12 +408,15 @@ function bindEvents() {
     });
   });
 
+  // Simulator SMS Form Submit
+  const smsChat = document.getElementById('smsChatWindow');
   document.getElementById('smsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = document.getElementById('smsInput');
     const msg = input.value.trim();
     if (!msg) return;
 
+    // Append outgoing user message
     appendChatMessage('USER', msg);
     input.value = '';
 
@@ -533,29 +433,21 @@ function bindEvents() {
         }),
       });
 
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        if (data.reply) {
-          appendChatMessage('TWILIO', data.reply);
-        }
-        if (data.record?.location?.coordinates) {
-          allRequests.unshift(data.record);
-          renderMapPins();
-          renderFeed();
-          const [lng, lat] = data.record.location.coordinates;
-          map.flyTo([lat, lng], 15);
-        }
-      } else {
-        // Instant simulated response if backend is rewriting
-        const simId = `REQ-${Date.now().toString().slice(-4)}`;
-        const reply = `ResQAlert Confirmed [${simId}]: Your emergency notice is pinned to the live grid. Responders notified!`;
-        appendChatMessage('TWILIO', reply);
+      const data = await res.json();
+      if (data.reply) {
+        appendChatMessage('TWILIO', data.reply);
       }
+      // Refresh map and data
       await fetchRequests();
       await fetchStats();
+
+      // If a new record was pinned, zoom to it!
+      if (data.record?.location?.coordinates) {
+        const [lng, lat] = data.record.location.coordinates;
+        map.flyTo([lat, lng], 15);
+      }
     } catch (err) {
-      appendChatMessage('TWILIO', 'Message received and dispatched to field grid.');
+      appendChatMessage('TWILIO', 'Error reaching SMS gateway: ' + err.message);
     }
   });
 }
