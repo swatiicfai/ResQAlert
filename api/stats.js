@@ -1,24 +1,12 @@
-import { getStats } from './db.js';
+var db = require('./db');
 
-function sendJson(res, statusCode, data) {
-  if (typeof res.status === 'function' && typeof res.json === 'function') {
-    return res.status(statusCode).json(data);
-  }
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(data));
-}
-
-export default async function handler(req, res) {
+module.exports = function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Content-Type', 'application/json');
 
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    res.end();
-    return;
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const stats = await getStats();
-  return sendJson(res, 200, { success: true, stats });
-}
+  var stats = db.getStats();
+  return res.status(200).json({ success: true, stats: stats });
+};
