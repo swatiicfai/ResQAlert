@@ -1,0 +1,24 @@
+{
+  "name": "resqalert",
+  "version": "1.0.0",
+  "description": "Offline-First Community Disaster & Mutual-Aid Resource Dispatcher with Twilio SMS, MongoDB Atlas Geospatial, and Leaflet.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "hackathon",
+    "mlhacks",
+    "devchallenge",
+    "disaster-relief",
+    "emergency-response",
+    "twilio",
+    "mongodb-atlas",
+    "geospatial",
+    "offline-first"
+  ],
+  "author": "swatiicfai",
+  "license": "MIT"
+}
