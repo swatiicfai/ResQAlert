@@ -1,7 +1,39 @@
 import { getRequests, addRequest } from './db.js';
 
+function sendJson(res, statusCode, data) {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    return res.status(statusCode).json(data);
+  }
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(data));
+}
+
+function getQuery(req) {
+  if (req.query) return req.query;
+  const url = new URL(req.url, `http://${req.headers?.host || 'localhost'}`);
+  return Object.fromEntries(url.searchParams.entries());
+}
+
+async function getBody(req) {
+  if (req.body) {
+    return typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  }
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -13,41 +45,20 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const lat = url.searchParams.get('lat');
-    const lng = url.searchParams.get('lng');
-    const radiusKm = url.searchParams.get('radius');
-    const type = url.searchParams.get('type');
-    const category = url.searchParams.get('category');
-    const status = url.searchParams.get('status');
-
-    const results = await getRequests({ lat, lng, radiusKm, type, category, status });
-    res.setHeader('Content-Type', 'application/json');
-    res.statusCode = 200;
-    res.end(JSON.stringify({ success: true, count: results.length, data: results }));
-    return;
+    const query = getQuery(req);
+    const { lat, lng, radius, type, category, status } = query;
+    const results = await getRequests({ lat, lng, radiusKm: radius, type, category, status });
+    return sendJson(res, 200, { success: true, count: results.length, data: results });
   }
 
   if (req.method === 'POST') {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk;
-    });
-
-    req.on('end', async () => {
-      try {
-        const payload = JSON.parse(body || '{}');
-        const created = await addRequest(payload);
-        res.setHeader('Content-Type', 'application/json');
-        res.statusCode = 201;
-        res.end(JSON.stringify({ success: true, data: created }));
-      } catch (err) {
-        res.setHeader('Content-Type', 'application/json');
-        res.statusCode = 400;
-        res.end(JSON.stringify({ success: false, error: err.message }));
-      }
-    });
-    return;
+    try {
+      const payload = await getBody(req);
+      const created = await addRequest(payload);
+      return sendJson(res, 201, { success: true, data: created });
+    } catch (err) {
+      return sendJson(res, 400, { success: false, error: err.message });
+    }
   }
 
   res.statusCode = 405;

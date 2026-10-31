@@ -1,39 +1,100 @@
-// Data storage adapter: MongoDB Atlas 2dsphere Geospatial + Zero-config Local Fallback
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+// Data storage adapter: MongoDB Atlas 2dsphere Geospatial + Zero-config Embedded Fallback
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DATA_FILE = path.join(__dirname, '..', 'data', 'requests.json');
-
-// In-memory cache loaded from JSON file
-let cache = [];
-
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      cache = JSON.parse(raw);
-    } else {
-      cache = [];
-    }
-  } catch (err) {
-    console.error('Error reading requests.json, starting with empty array:', err.message);
-    cache = [];
+const SEED_REQUESTS = [
+  {
+    id: "REQ-101",
+    type: "NEED",
+    category: "MEDICAL",
+    urgency: "CRITICAL",
+    title: "Elderly patient needs oxygen & insulin support",
+    description: "Power grid failed 3 hours ago. Battery backup on portable oxygen concentrator has 45 mins left. Need generator or fresh tank.",
+    location: {
+      type: "Point",
+      coordinates: [-73.9851, 40.7484],
+      address: "350 5th Ave (Near 34th St Entrance), New York, NY"
+    },
+    contact: "+1 (555) 234-8901",
+    channel: "SMS",
+    status: "OPEN",
+    createdAt: "2026-10-31T17:30:00Z",
+    claimedBy: null
+  },
+  {
+    id: "REQ-102",
+    type: "NEED",
+    category: "RESCUE",
+    urgency: "HIGH",
+    title: "Ground floor flooded, family of 4 stranded",
+    description: "Water rising above knee level. Need evacuation assistance or high-clearance vehicle/boat.",
+    location: {
+      type: "Point",
+      coordinates: [-73.9712, 40.7648],
+      address: "68th St & York Ave, New York, NY"
+    },
+    contact: "+1 (555) 891-2345",
+    channel: "WEB",
+    status: "CLAIMED",
+    createdAt: "2026-10-31T18:15:00Z",
+    claimedBy: "Water Rescue Squad 4 (ETA: 15 mins)"
+  },
+  {
+    id: "REQ-103",
+    type: "NEED",
+    category: "WATER_FOOD",
+    urgency: "MEDIUM",
+    title: "Clean drinking water & infant formula needed",
+    description: "Tap water contaminated due to water main break. Infant formula supplies exhausted for 12-month-old.",
+    location: {
+      type: "Point",
+      coordinates: [-73.9928, 40.7308],
+      address: "Washington Square East, New York, NY"
+    },
+    contact: "+1 (555) 432-6789",
+    channel: "SMS",
+    status: "OPEN",
+    createdAt: "2026-10-31T18:45:00Z",
+    claimedBy: null
+  },
+  {
+    id: "REQ-104",
+    type: "OFFER",
+    category: "SHELTER",
+    urgency: "LOW",
+    title: "Community Center Dry Shelter & Power Station",
+    description: "Backup diesel generator active. Clean water, hot meals, 45 dry cots, and phone charging stations available.",
+    location: {
+      type: "Point",
+      coordinates: [-73.9982, 40.7260],
+      address: "Houston St Community Annex, New York, NY"
+    },
+    contact: "+1 (555) 765-4321",
+    channel: "WEB",
+    status: "OPEN",
+    createdAt: "2026-10-31T16:00:00Z",
+    claimedBy: null
+  },
+  {
+    id: "REQ-105",
+    type: "OFFER",
+    category: "MEDICAL",
+    urgency: "LOW",
+    title: "Volunteer Paramedic Team with Mobile First-Aid",
+    description: "Equipped with automated external defibrillator (AED), sterile dressings, burns treatment, and basic triage supplies.",
+    location: {
+      type: "Point",
+      coordinates: [-73.9814, 40.7410],
+      address: "Madison Square Park North, New York, NY"
+    },
+    contact: "+1 (555) 902-3456",
+    channel: "WEB",
+    status: "OPEN",
+    createdAt: "2026-10-31T17:10:00Z",
+    claimedBy: null
   }
-}
+];
 
-function saveData() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(cache, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn('Could not persist to file (read-only environment like Vercel serverless):', err.message);
-  }
-}
-
-// Initial load
-loadData();
+// Persistent cache in memory across warm invocations
+let cache = [...SEED_REQUESTS];
 
 // Calculate Haversine distance in kilometers between two [lon, lat] coordinates
 export function calculateDistanceKm(lon1, lat1, lon2, lat2) {
@@ -65,7 +126,7 @@ export async function getRequests(filters = {}) {
   }
 
   // If coordinates provided, compute distance and filter by radius
-  if (lat !== undefined && lng !== undefined) {
+  if (lat !== undefined && lng !== undefined && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))) {
     const userLat = parseFloat(lat);
     const userLng = parseFloat(lng);
     const maxDist = radiusKm ? parseFloat(radiusKm) : 50;
@@ -111,7 +172,6 @@ export async function addRequest(data) {
   };
 
   cache.unshift(item);
-  saveData();
   return item;
 }
 
@@ -123,7 +183,6 @@ export async function updateRequestStatus(id, status, claimedBy = null) {
   if (claimedBy) {
     item.claimedBy = claimedBy;
   }
-  saveData();
   return item;
 }
 

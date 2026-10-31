@@ -1,5 +1,32 @@
 import { updateRequestStatus } from './db.js';
 
+function sendJson(res, statusCode, data) {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    return res.status(statusCode).json(data);
+  }
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(data));
+}
+
+async function getBody(req) {
+  if (req.body) {
+    return typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  }
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -17,36 +44,19 @@ export default async function handler(req, res) {
     return;
   }
 
-  let body = '';
-  req.on('data', (chunk) => {
-    body += chunk;
-  });
-
-  req.on('end', async () => {
-    try {
-      const { id, status, claimedBy } = JSON.parse(body || '{}');
-      if (!id || !status) {
-        res.statusCode = 400;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ success: false, error: 'Missing id or status' }));
-        return;
-      }
-
-      const updated = await updateRequestStatus(id, status, claimedBy);
-      if (!updated) {
-        res.statusCode = 404;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ success: false, error: 'Request not found' }));
-        return;
-      }
-
-      res.setHeader('Content-Type', 'application/json');
-      res.statusCode = 200;
-      res.end(JSON.stringify({ success: true, data: updated }));
-    } catch (err) {
-      res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ success: false, error: err.message }));
+  try {
+    const { id, status, claimedBy } = await getBody(req);
+    if (!id || !status) {
+      return sendJson(res, 400, { success: false, error: 'Missing id or status' });
     }
-  });
+
+    const updated = await updateRequestStatus(id, status, claimedBy);
+    if (!updated) {
+      return sendJson(res, 404, { success: false, error: 'Request not found' });
+    }
+
+    return sendJson(res, 200, { success: true, data: updated });
+  } catch (err) {
+    return sendJson(res, 500, { success: false, error: err.message });
+  }
 }

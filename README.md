@@ -1,6 +1,7 @@
 # 🚨 ResQAlert
 ### Offline-First Community Disaster & Mutual-Aid Resource Dispatcher
 
+[![Live Demo](https://img.shields.io/badge/Demo-resqalert--omega.vercel.app-black?style=for-the-badge&logo=vercel)](https://resqalert-omega.vercel.app)
 [![MLH Hackathon Project](https://img.shields.io/badge/MLH-Hackathon%20Project-fe485c?style=for-the-badge&logo=major-league-hacking)](https://dev.to/mlh-hackathon)
 [![DEV Challenge](https://img.shields.io/badge/DEV-Writing%20Challenge-0a0a0a?style=for-the-badge&logo=dev-to)](https://dev.to)
 [![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas%20Geospatial-47A248?style=for-the-badge&logo=mongodb)](https://mongodb.com)

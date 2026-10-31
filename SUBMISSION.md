@@ -23,7 +23,7 @@ Yet, basic cellular signal (2G voice/SMS) often remains operational across cell 
 ## Demo
 
 - **GitHub Repository**: [github.com/swatiicfai/ResQAlert](https://github.com/swatiicfai/ResQAlert)
-- **Live Deployment**: [resqalert.vercel.app](https://resqalert.vercel.app)
+- **Live Deployment**: [resqalert-omega.vercel.app](https://resqalert-omega.vercel.app)
 
 ### Project Walkthrough:
 1. **Interactive Disaster Radar**: Real-time Leaflet map displaying active incident pins color-coded by urgency (Red for critical medical/rescue, Amber for food/water, Green for volunteer shelters and supplies).
